@@ -1,0 +1,7 @@
+services:
+  redis:
+    image: redis:8.6.2-trixie
+    container_name: redis
+    command: redis-server --save 20 1 --loglevel warning --requirepass redispassword
+    volumes:
+      - ./data:/data
