@@ -11,7 +11,7 @@ from typer import Typer
 
 logger = logging.getLogger(__name__)
 REDIS_URL = os.environ["REDIS_URL"]
-logger.debug(f"REDIS_URL={REDIS_URL}"
+logger.debug(f"REDIS_URL={REDIS_URL}")
 
 queue = Celery(__name__, broker=REDIS_URL, backend=REDIS_URL, task_track_started=True)
 console = Console(highlight=False)
