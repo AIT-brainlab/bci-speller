@@ -1078,7 +1078,7 @@ def initialize_experiment():
             amplitude=AMPLITUDE,
             wave_type=wave_type,
             duration=EPOCH_DURATION,
-            fps=refresh_rate,qq
+            fps=refresh_rate,
             base_pos=pos,
             height=HEIGHT,
             width=WIDTH,
