@@ -219,3 +219,4 @@ local.env
 
 !.devcontainer/dev/.env
 !.keeps
+*.fif

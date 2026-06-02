@@ -1,0 +1,23 @@
+[run]
+branch = true
+source = .
+omit =
+    experiment.py
+    utils/*
+    tests/*
+    __main__.py
+    speller_config.py
+
+[report]
+fail_under = 100
+show_missing = True
+include =
+    __init__.py
+    config/*
+    live_monitor.py
+    live_monitor_class.py
+    monitor.py
+    process.py
+    standalone.py
+    stream_feeder.py
+    theme.py

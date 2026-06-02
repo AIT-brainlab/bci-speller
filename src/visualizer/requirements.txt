@@ -1,0 +1,5 @@
+numpy>=1.20
+matplotlib>=3.5
+brainflow>=5.0
+pydantic>=2.0
+pydantic-settings>=2.0
