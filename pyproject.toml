@@ -1,36 +1,34 @@
 [project]
-name = "python-project-starter"
+name = "bci-speller"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = "==3.10.20"
 dependencies = [
-    "celery[redis]>=5.6.3",
-    "django>=6.0.4",
-    "django-stubs[compatible-mypy]>=6.0.3",
-    "fastapi>=0.136.1",
-    "jinja2>=3.1.6",
-    "numpy>=2.4.4",
-    "pandas>=3.0.2",
-    "pytest-coverage>=0.0",
-    "pytest-env>=1.6.0",
-    "python-dotenv>=1.2.2",
-    "scikit-learn>=1.8.0",
-    "typer>=0.25.0",
-    "uvicorn>=0.46.0",
+    "beeply>=1.0.2",
+    "brainflow>=5.22.2",
+    "celery>=5.6.3",
+    "fastapi>=0.136.3",
+    "mne>=1.12.1",
+    "psychopy>=2026.1.3",
+    "scikit-learn>=1.7.2",
+    "typer>=0.26.2",
+    "uvicorn>=0.48.0",
 ]
 
 [dependency-groups]
 dev = [
-    "django-debug-toolbar>=6.3.0",
-    "ipykernel>=6.30.1",
-    "mypy>=1.20.2",
     "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.14",
 ]
 
 [tool.uv]
 package = true
 
+[tool.uv.pip]
+only-binary = ["ffpyplayer"]
+
 [project.scripts]
-python-project-starter = "project:cli"
+bci-speller = "project:cli"
 
