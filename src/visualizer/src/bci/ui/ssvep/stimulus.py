@@ -1,0 +1,1 @@
+"""SSVEP flicker stimulus (stub)."""

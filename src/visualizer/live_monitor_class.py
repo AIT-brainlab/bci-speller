@@ -1,20 +1,22 @@
 """
 EEGVisualizer — live EEG plot in a dedicated OS process.
 
-Use with EEGStreamController.add_subscriber(visualizer.data_queue), or run
-standalone via ``python -m visualizer``.
+Delegates to ``bci.ui.signal_monitor.SignalMonitorApp`` while keeping the
+original API used by ``experiment.py`` and ``standalone.py``.
 """
 
 from __future__ import annotations
 
-import multiprocessing
-from multiprocessing import Process
-from multiprocessing.queues import Queue as MpQueue
-from typing import Any, List, Optional, Sequence
+import sys
+from pathlib import Path
+from typing import Any, Optional, Sequence
 
-from visualizer.config.settings import resolve_plot_params
-from visualizer.process import run_visualizer_process
-from visualizer.theme import CHANNEL_LABELS
+# Ensure the refactored bci package is importable from the visualizer tree.
+_BCI_SRC = Path(__file__).resolve().parent / "src"
+if str(_BCI_SRC) not in sys.path:
+    sys.path.insert(0, str(_BCI_SRC))
+
+from bci.ui.signal_monitor import SignalMonitorApp
 
 
 class EEGVisualizer:
@@ -33,94 +35,64 @@ class EEGVisualizer:
         monitor_index: int = 1,
         ch_indices: Optional[Sequence[int]] = None,
     ) -> None:
-        from brainflow.board_shim import BoardShim
-
-        resolved_window, resolved_plot_hz, resolved_amplitude = resolve_plot_params(
+        self._app = SignalMonitorApp(
+            board_id=board_id,
+            n_channels=n_channels,
             window_sec=window_sec,
             plot_hz=plot_hz,
             amplitude_uv=amplitude_uv,
+            channel_labels=channel_labels,
+            fs=fs,
+            monitor_index=monitor_index,
+            ch_indices=ch_indices,
         )
-
-        if fs is None:
-            try:
-                fs = int(BoardShim.get_sampling_rate(board_id))
-            except Exception:
-                fs = 250
-
-        if ch_indices is None:
-            try:
-                eeg_ch = BoardShim.get_eeg_channels(board_id)
-                ch_indices = list(eeg_ch[:n_channels])
-            except Exception:
-                ch_indices = list(range(1, n_channels + 1))
-        else:
-            ch_indices = list(ch_indices)
-
-        labels: List[str] = list(channel_labels or CHANNEL_LABELS)[:n_channels]
-
-        self._data_queue: MpQueue[Any] = multiprocessing.Queue(maxsize=300)
-        self._marker_queue: MpQueue[Any] = multiprocessing.Queue(maxsize=100)
-        self._stop_event = multiprocessing.Event()
-        self._pause_event = multiprocessing.Event()
-        self._pause_event.set()
-
-        self._proc_args = (
-            self._data_queue,
-            self._marker_queue,
-            self._stop_event,
-            self._pause_event,
-            n_channels,
-            ch_indices,
-            float(resolved_window),
-            float(fs),
-            int(resolved_plot_hz),
-            float(resolved_amplitude),
-            labels,
-            int(monitor_index),
-        )
-
-        self._process: Optional[Process] = None
         self._board_shim = board_shim
         self._board_id = board_id
 
     @property
-    def data_queue(self) -> MpQueue[Any]:
-        return self._data_queue
+    def data_queue(self) -> Any:
+        return self._app.data_queue
 
     def start(self) -> None:
-        self._stop_event.clear()
-        self._pause_event.set()
-        self._process = Process(
-            target=run_visualizer_process,
-            args=self._proc_args,
-            daemon=False,
-            name="EEGVisualizerProc",
-        )
-        self._process.start()
-        print("[EEGVisualizer] Started")
+        self._app.start()
 
     def stop(self) -> None:
-        self._stop_event.set()
-        if self._process and self._process.is_alive():
-            self._process.join(timeout=5)
-            if self._process.is_alive():
-                self._process.terminate()
-        print("[EEGVisualizer] Stopped")
+        self._app.stop()
 
     def pause(self) -> None:
-        self._pause_event.clear()
-        print("[EEGVisualizer] Paused")
+        self._app.pause()
 
     def resume(self) -> None:
-        self._pause_event.set()
-        print("[EEGVisualizer] Resumed")
+        self._app.resume()
 
     def mark(self, label: str = "") -> None:
-        try:
-            self._marker_queue.put_nowait(label)
-        except Exception:
-            pass
+        self._app.mark(label)
 
     @property
     def is_running(self) -> bool:
-        return self._process is not None and self._process.is_alive()
+        return self._app.is_running
+
+    # Exposed for unit tests that inspect process arguments.
+    @property
+    def _proc_args(self) -> tuple:
+        return self._app._proc_args
+
+    @property
+    def _pause_event(self) -> Any:
+        return self._app._pause_event
+
+    @property
+    def _marker_queue(self) -> Any:
+        return self._app._marker_queue
+
+    @_marker_queue.setter
+    def _marker_queue(self, value: Any) -> None:
+        self._app._marker_queue = value
+
+    @property
+    def _process(self) -> Any:
+        return self._app._process
+
+    @_process.setter
+    def _process(self, value: Any) -> None:
+        self._app._process = value
