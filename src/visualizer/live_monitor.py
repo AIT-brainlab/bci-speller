@@ -4,7 +4,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Allow "Run" on this file from the IDE (cwd is often visualizer/, not Internship/).
+# Allow "Run" on this file from the IDE.
 if __name__ == "__main__":
     _internship_root = Path(__file__).resolve().parent.parent
     if str(_internship_root) not in sys.path:

@@ -15,7 +15,7 @@ def bootstrap() -> Path:
     ``visualizer`` is the project folder name, so its parent must be on
     sys.path (same as ``experiment.py``). ``bci`` lives under ``src/``.
     """
-    for path in (_PROJECT_ROOT.parent, _PROJECT_ROOT / "src", _PROJECT_ROOT):
+    for path in (_PROJECT_ROOT.parent, _PROJECT_ROOT):
         entry = str(path)
         if entry not in sys.path:
             sys.path.insert(0, entry)

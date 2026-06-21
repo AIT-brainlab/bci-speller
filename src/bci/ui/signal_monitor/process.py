@@ -14,9 +14,9 @@ from pathlib import Path
 from typing import Any, List, Sequence
 
 # Windows spawn: child process must set up import paths before bci imports.
-_viz_root = Path(__file__).resolve().parents[4]
-_src_root = _viz_root / "src"
-for _p in (_viz_root.parent, _src_root, _viz_root):
+_src_root = Path(__file__).resolve().parents[3]
+_proj_root = _src_root.parent
+for _p in (_proj_root, _src_root):
     _entry = str(_p)
     if _entry not in sys.path:  # pragma: no cover
         sys.path.insert(0, _entry)  # pragma: no cover

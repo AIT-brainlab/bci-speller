@@ -12,9 +12,9 @@ from pathlib import Path
 from typing import Any, Optional, Sequence
 
 # Ensure the refactored bci package is importable from the visualizer tree.
-_BCI_SRC = Path(__file__).resolve().parent / "src"
-if str(_BCI_SRC) not in sys.path:
-    sys.path.insert(0, str(_BCI_SRC))
+_BCI_SRC = Path(__file__).resolve().parent.parent
+if str(_BCI_SRC) not in sys.path:  # pragma: no cover
+    sys.path.insert(0, str(_BCI_SRC))  # pragma: no cover
 
 from bci.ui.signal_monitor import SignalMonitorApp
 

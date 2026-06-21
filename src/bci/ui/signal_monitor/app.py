@@ -62,15 +62,15 @@ class SignalMonitorApp:
     ) -> None:
         from brainflow.board_shim import BoardShim
 
-        if board is not None:
-            status = board.get_status()
-            if board_id is None:
-                board_id = status.board_id
-            if fs is None and status.sampling_rate is not None:
-                fs = int(status.sampling_rate)
-
+        # Decoupled resolution of board parameters (not relying on board internals)
         if board_id is None:
-            board_id = 8
+            if board is not None and hasattr(board, "get_status"):
+                try:
+                    board_id = board.get_status().board_id
+                except Exception:
+                    pass
+            if board_id is None:
+                board_id = 8
 
         resolved_window, resolved_plot_hz, resolved_amplitude = _resolve_plot_params(
             window_sec=window_sec,
@@ -79,15 +79,24 @@ class SignalMonitorApp:
         )
 
         if fs is None:
-            try:
-                fs = int(BoardShim.get_sampling_rate(board_id))
-            except Exception:
-                fs = 250
+            if board is not None and hasattr(board, "get_status"):
+                try:
+                    fs = board.get_status().sampling_rate
+                except Exception:
+                    pass
+            if fs is None:
+                try:
+                    fs = int(BoardShim.get_sampling_rate(board_id))
+                except Exception:
+                    fs = 250
 
         if ch_indices is None:
-            if board is not None:
-                ch_indices = list(board.eeg_channel_indices)[:n_channels]
-            else:
+            if board is not None and hasattr(board, "eeg_channel_indices"):
+                try:
+                    ch_indices = list(board.eeg_channel_indices)[:n_channels]
+                except Exception:
+                    pass
+            if ch_indices is None:
                 try:
                     eeg_ch = BoardShim.get_eeg_channels(board_id)
                     ch_indices = list(eeg_ch[:n_channels])
@@ -125,7 +134,12 @@ class SignalMonitorApp:
         self._board = board
         self._bridge: Optional[StreamBridge] = None
         if board is not None:
-            self._bridge = StreamBridge(board.raw_stream, self._data_queue)
+            if hasattr(board, "get_raw_stream"):
+                raw_stream = board.get_raw_stream()
+            else:
+                raw_stream = getattr(board, "raw_stream", None)
+            if raw_stream is not None:
+                self._bridge = StreamBridge(raw_stream, self._data_queue)
 
     @property
     def data_queue(self) -> MpQueue[Any]:
@@ -182,3 +196,66 @@ class SignalMonitorApp:
     @property
     def is_running(self) -> bool:
         return self._process is not None and self._process.is_alive()
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    """Launch the signal monitor UI standalone, instantiating a synthetic board by default."""
+    import argparse
+    from bci.board.synthetic import SyntheticBoard
+    from bci.board.brainflow_board import BrainFlowBoard
+
+    parser = argparse.ArgumentParser(description="Standalone EEG Signal Monitor")
+    parser.add_argument("--synthetic", action="store_true", default=True, help="Use synthetic board (default)")
+    parser.add_argument("--board-id", type=int, default=-1, help="BrainFlow board ID")
+    parser.add_argument("--serial", type=str, default="", help="Serial number for physical board")
+    parser.add_argument("--n-channels", type=int, default=8, help="Number of channels")
+    parser.add_argument("--window-sec", type=float, default=5.0, help="Timeline window in seconds")
+    parser.add_argument("--plot-hz", type=int, default=20, help="Plot refresh rate in Hz")
+    parser.add_argument("--amplitude-uv", type=float, default=100.0, help="EEG amplitude range in microvolts")
+    parser.add_argument("--monitor", type=int, default=1, help="Monitor index")
+    args = parser.parse_args(argv)
+
+    if args.board_id > 0 and args.synthetic:
+        # If user explicitly specifies a real board ID, disable synthetic
+        args.synthetic = False
+
+    if args.synthetic or args.board_id <= 0:
+        board = SyntheticBoard(n_channels=args.n_channels, sampling_rate=250)
+    else:
+        board = BrainFlowBoard(board_id=args.board_id, serial_number=args.serial)
+
+    print(f"[SignalMonitorApp Main] Opening board (board_id={board.get_status().board_id})...")
+    board.open()
+    board.start_stream()
+
+    # Confirm the decoupled queue-based subscription pattern works end-to-end:
+    # Get the raw stream from the board
+    raw_stream = board.get_raw_stream()
+    print(f"[SignalMonitorApp Main] Subscribed to raw stream. Starting monitor app...")
+
+    app = SignalMonitorApp(
+        board=board,
+        n_channels=args.n_channels,
+        window_sec=args.window_sec,
+        plot_hz=args.plot_hz,
+        amplitude_uv=args.amplitude_uv,
+        monitor_index=args.monitor,
+    )
+    app.start()
+
+    try:
+        while app.is_running:
+            time.sleep(0.2)
+    except KeyboardInterrupt:
+        print("\n[SignalMonitorApp Main] Interrupted")
+    finally:
+        app.stop()
+        board.stop_stream()
+        board.close()
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+

@@ -30,6 +30,10 @@ class BoardInterface(ABC):
         self.raw_stream = DataStream()
         self._subscribers: list[DataStream] = [self.raw_stream]
 
+    def get_raw_stream(self) -> DataStream:
+        """Return the raw DataStream object."""
+        return self.raw_stream
+
     def add_subscriber(self, stream: DataStream) -> None:
         """Register a new DataStream subscriber to receive sample chunks."""
         if stream not in self._subscribers:
