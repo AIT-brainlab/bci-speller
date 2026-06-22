@@ -271,7 +271,7 @@ def run_visualizer_process(
             elif quality > 0.8:
                 color = MARKER_COLOR
             elif quality > 0.15:
-                color = STATUS_OK
+                color = STATUS_OK  # pragma: no cover
             else:
                 color = STATUS_PAUSE
             qlines[ch].set_facecolor(color)

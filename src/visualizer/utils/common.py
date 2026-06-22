@@ -1,4 +1,4 @@
-from brainflow import BoardShim
+from brainflow.board_shim import BoardShim
 import mne
 import logging
 from mne.datasets import eegbci
@@ -8,7 +8,7 @@ import argparse
 import json
 from psychopy import visual
 import numpy as np
-from utils.speller_config import *
+from visualizer.utils.speller_config import *
 import pickle
 
 def create_session_folder(subj,dir):

@@ -14,7 +14,8 @@ def test_position_no_window() -> None:
     position_figure_on_monitor(fig, 0)
 
 
-def test_position_with_mock_tk() -> None:
+@patch("visualizer.monitor.list_monitors", return_value=[(0, 0, 1920, 1080)])
+def test_position_with_mock_tk(mock_list_monitors) -> None:
     root = MagicMock()
     fig = MagicMock()
     fig.canvas.manager.window = root

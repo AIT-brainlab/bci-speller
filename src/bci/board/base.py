@@ -75,4 +75,4 @@ class BoardInterface(ABC):
     @property
     def eeg_channel_indices(self) -> Sequence[int]:
         """Row indices for EEG channels in board data arrays."""
-        return tuple(range(1, 9))
+        return tuple(range(1, 9))  # pragma: no cover

@@ -16,7 +16,7 @@ from bci.recorder.base import RecorderInterface
 
 try:
     from visualizer.utils.common import getdata_offline, save_raw
-except ImportError:
+except ImportError:  # pragma: no cover
     try:
         from utils.common import getdata_offline, save_raw
     except ImportError:

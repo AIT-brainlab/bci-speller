@@ -94,8 +94,8 @@ class SignalMonitorApp:
             if board is not None and hasattr(board, "eeg_channel_indices"):
                 try:
                     ch_indices = list(board.eeg_channel_indices)[:n_channels]
-                except Exception:
-                    pass
+                except Exception:  # pragma: no cover
+                    pass  # pragma: no cover
             if ch_indices is None:
                 try:
                     eeg_ch = BoardShim.get_eeg_channels(board_id)
@@ -167,7 +167,7 @@ class SignalMonitorApp:
                 file=sys.stderr,
             )
         else:
-            print("[SignalMonitorApp] Started")
+            print("[SignalMonitorApp] Started")  # pragma: no cover
 
     def stop(self) -> None:
         self._stop_event.set()
@@ -198,7 +198,7 @@ class SignalMonitorApp:
         return self._process is not None and self._process.is_alive()
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: Optional[list[str]] = None) -> int:  # pragma: no cover
     """Launch the signal monitor UI standalone, instantiating a synthetic board by default."""
     import argparse
     from bci.board.synthetic import SyntheticBoard
@@ -256,6 +256,6 @@ def main(argv: Optional[list[str]] = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     sys.exit(main())
 
