@@ -1,3 +1,0 @@
-include:
-  - dev/docker-compose.yml
-  - redis/docker-compose.yml
