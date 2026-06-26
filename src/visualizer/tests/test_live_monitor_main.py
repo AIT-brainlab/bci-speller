@@ -74,7 +74,7 @@ def test_stop_when_process_not_alive(board_shim: MagicMock) -> None:
     proc.terminate.assert_not_called()
 
 
-@patch("visualizer.live_monitor_class.Process")
+@patch("bci.ui.signal_monitor.app.Process")
 def test_stop_join_without_terminate(mock_process_cls: MagicMock) -> None:
     proc = MagicMock()
     proc.is_alive.side_effect = [True, False]

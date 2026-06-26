@@ -2,8 +2,15 @@ from psychopy import visual, core, event
 import platform
 import os
 import sys
-path = os.path.dirname(os.path.dirname(__file__))
-sys.path.append(path)
+
+# Ensure src/ and visualizer parent are in sys.path
+path = os.path.dirname(__file__)
+src_path = os.path.join(path, "src")
+parent_path = os.path.dirname(path)
+for p in (parent_path, src_path, path):
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
 from visualizer.utils.gui import get_screen_settings, CheckerBoard
 import numpy as np
 import random
@@ -20,7 +27,10 @@ from visualizer.speller_config import *
 import queue
 import io
 import contextlib
-from visualizer import EEGVisualizer
+from bci.board.brainflow_board import BrainFlowBoard
+from bci.board.synthetic import SyntheticBoard
+from bci.recorder.fif import FifRecorder
+from bci.ui.signal_monitor import SignalMonitorApp
 from visualizer.config import VisualizerConfigError, resolve_plot_params
 
 a = beeps(800)
@@ -41,7 +51,7 @@ frames = 0
 t0 = 0.0
 
 # DEV_DUAL_MONITOR = os.environ.get("DEV_DUAL_MONITOR", "1").strip().lower() in ("1", "true", "yes")
-DEV_DUAL_MONITOR = 0
+DEV_DUAL_MONITOR = 1
 BOARD_SCREEN = int(os.environ.get("BOARD_SCREEN", "0"))
 VISUALIZER_MONITOR = int(os.environ.get("VISUALIZER_MONITOR", "1"))
 EEG_WINDOW_SEC = float(os.environ.get("EEG_WINDOW_SEC", "0.5"))
@@ -49,7 +59,7 @@ EEG_DEBUG = os.environ.get("EEG_DEBUG", "0").strip().lower() in ("1", "true", "y
 EEG_VERBOSE = os.environ.get("EEG_VERBOSE", "0").strip().lower() in ("1", "true", "yes")
 EEG_LOG_EVERY = max(1, int(os.environ.get("EEG_LOG_EVERY", "10")))
 
-_run_handles = {"board_shim": None, "eeg_controller": None, "visualizer": None}
+_run_handles = {"board": None, "recorder": None, "visualizer": None}
 _quitting = False
 
 
@@ -87,10 +97,14 @@ def print_board_layout(board_shim, board_id, window_duration, n_visualizer_chann
         except Exception:
             pass
 
-    board_shim.get_board_data()
-    time.sleep(0.05)
-    probe = board_shim.get_board_data()
-    n_rows, n_probe = probe.shape if probe is not None and probe.size else (0, 0)
+    try:
+        board_shim.get_board_data()
+        time.sleep(0.05)
+        probe = board_shim.get_board_data()
+        n_rows, n_probe = probe.shape if probe is not None and probe.size else (0, 0)
+    except Exception:
+        # Called before stream starts — static channel/rate info is still valid
+        n_rows, n_probe = 0, 0
 
     expected = int(round(fs * window_duration))
     log_section("Board / EEG timing")
@@ -162,16 +176,17 @@ def measure_refresh_rate(win, n_frames=120):
     for _ in range(n_frames):
         win.flip()
     elapsed = clock.getTime()
-    reported = round(win.getActualFrameRate(nIdentical=30, nMaxFrames=120))
+    reported_raw = win.getActualFrameRate(nIdentical=30, nMaxFrames=120)
+    reported = int(round(reported_raw)) if reported_raw not in (None, 0) else None
     if elapsed > 0:
         measured = round(n_frames / elapsed)
         if measured > 0:
-            if reported > 0 and abs(measured - reported) > 15:
+            if reported is not None and abs(measured - reported) > 15:
                 print(f"[Display] getActualFrameRate={reported} vs measured={measured}, using measured")
             else:
                 print(f"[Display] Refresh rate: {measured} Hz (measured)")
             return measured
-    if reported > 0:
+    if reported is not None:
         print(f"[Display] Refresh rate: {reported} Hz (reported)")
         return reported
     print("[Display] Refresh rate fallback: 60 Hz")
@@ -240,153 +255,16 @@ def initialize_experiment():
     trial_break_start = visual.TextStim(window, text=trial_break_text, color=(-1.0, -1.0, -1.0))
     counter = visual.TextStim(window, text="", pos=(0, 50), color=(-1.0, -1.0, -1.0))
 
-###
-class EEGStreamController:
-    """
-    Pull EEG in fixed wall-clock windows (perf_counter), because headset timestamps
-    are unreliable. window_duration=1.0 means ~1s between get_board_data() calls.
-    """
-    def __init__(self, board_shim, window_duration, board_id,
-                 recording_dir, participant_id, eeg_row_indices=None):
-        self.board_shim      = board_shim
-        self.window_duration = float(window_duration)
-        self.board_id        = board_id
-        self.recording_dir   = recording_dir
-        self.participant_id  = participant_id
-        try:
-            self.fs = BoardShim.get_sampling_rate(board_id)
-        except Exception:
-            self.fs = 250
-        if eeg_row_indices is None:
-            try:
-                eeg_row_indices = list(BoardShim.get_eeg_channels(board_id))
-            except Exception:
-                eeg_row_indices = list(range(1, 9))
-        self.eeg_row_indices = list(eeg_row_indices)
-        self._stop_event     = threading.Event()
-        self._pause_event    = threading.Event()
-        self._pause_event.set()   # set = running, clear = paused
-        self._thread         = None
-        self._lock           = threading.Lock()
-        self._window_index   = 0
-        self._window_durations = []
-        self._data_queue     = queue.Queue()
-        self._subscribers    = []
-        self._save_while_paused = False
-    def add_subscriber(self, q):
-        self._subscribers.append(q)
-        ###
-    def start(self):
-        self.board_shim.get_board_data()
-        self._stop_event.clear()
-        self._thread = threading.Thread(
-            target=self._collection_loop,
-            name="EEGStreamController",
-            daemon=True)
-        self._thread.start()
-        log_info("EEGStream", f"Started | window = {self.window_duration}s | log every {EEG_LOG_EVERY} windows")
-    def stop(self):
-        self._stop_event.set()
-        self._pause_event.set()
-        if self._thread and self._thread.is_alive():
-            self._thread.join(timeout=3.0)
-        log_info("EEGStream", f"Stopped | windows saved = {self._window_index}")
-    def pause(self):
-        self._pause_event.clear()
-        log_info("EEGStream", "Paused (no save/stream until resume)")
-    def resume(self):
-        _ = self.board_shim.get_board_data()
-        self._pause_event.set()
-        log_info("EEGStream", "Resumed")
-    def print_stats(self):
-        with self._lock:
-            durations = list(self._window_durations)
-        if not durations:
-            print("[EEGStream] No timing stats to show.")
-            return
-        arr = np.array(durations) * 1000  # convert to milliseconds
-        log_section("EEG timing report")
-        log_info("Windows", str(len(arr)))
-        log_info("Target ms", f"{self.window_duration * 1000:.1f}")
-        log_info("Mean ms", f"{arr.mean():.2f}")
-        log_info("Std ms", f"{arr.std():.2f}")
-        log_info("Min/Max ms", f"{arr.min():.2f} / {arr.max():.2f}")
-        print()
-    def _collection_loop(self):
-        while not self._stop_event.is_set():
-            self._pause_event.wait()
-            if self._stop_event.is_set():
-                break
-            window_start = time.perf_counter()
-            while True:
-                remaining = self.window_duration - (time.perf_counter() - window_start)
-                if remaining <= 0:
-                    break
-                time.sleep(min(remaining, 0.005))
-            data           = self.board_shim.get_board_data()
-            actual_elapsed = time.perf_counter() - window_start
-            with self._lock:
-                self._window_durations.append(actual_elapsed)
-
-            if self._stop_event.is_set():
-                break
-
-            if data.shape[1] == 0:
-                log_info("EEG WARN", f"W{self._window_index:04d} 0 samples")
-                self._window_index += 1
-                continue
-
-            if not self._pause_event.is_set() and not self._save_while_paused:
-                self.board_shim.get_board_data()
-                continue
-
-            validate_eeg_chunk(
-                data, self.eeg_row_indices, self.fs,
-                self.window_duration, self._window_index,
-            )
-
-            if self._stop_event.is_set():
-                break
-
-            expected = int(round(self.fs * self.window_duration))
-            idx = self._window_index
-            show = EEG_DEBUG or EEG_VERBOSE or (idx % EEG_LOG_EVERY == 0) or idx < 2
-            if show:
-                ok = "OK" if abs(data.shape[1] - expected) <= expected * 0.2 else "!"
-                print(
-                    f"  [EEG] #{idx:04d} | {data.shape[0]}x{data.shape[1]} | "
-                    f"{data.shape[1]:3d}/{expected} smp | {actual_elapsed*1000:5.0f} ms | {ok}"
-                )
-            try:
-                data_copy  = data.copy()
-                block_name = f"{self.participant_id}_w{idx:04d}_raw"
-                _process_and_save_window(
-                    data_copy, self.board_id, block_name,
-                    self.recording_dir, self.participant_id,
-                )
-            except Exception as exc:
-                log_info("EEG ERR", f"W{idx:04d} save failed: {exc}")
-            if self._stop_event.is_set():
-                break
-            self._data_queue.put(data.copy())
-            for sub_q in self._subscribers:
-                try:
-                    sub_q.put_nowait(data.copy())
-                except Exception:
-                    pass
-            self._window_index += 1
-
-
 def shutdown_experiment():
-    """Stop EEG thread first, then visualizer and BrainFlow."""
+    """Stop EEG recorder first, then visualizer and board."""
     global _quitting
     _quitting = True
-    ctrl = _run_handles.get("eeg_controller")
+    rec = _run_handles.get("recorder")
     vis = _run_handles.get("visualizer")
-    board = _run_handles.get("board_shim")
-    if ctrl is not None:
+    board = _run_handles.get("board")
+    if rec is not None:
         try:
-            ctrl.stop()
+            rec.stop()
         except Exception:
             pass
     if vis is not None:
@@ -396,9 +274,7 @@ def shutdown_experiment():
             pass
     if board is not None:
         try:
-            if board.is_prepared():
-                board.stop_stream()
-                board.release_session()
+            board.close()
         except Exception:
             pass
     if window is not None:
@@ -494,43 +370,49 @@ def main():
         BoardShim.enable_dev_board_logger()
     elif hasattr(BoardShim, "disable_dev_board_logger"):
         BoardShim.disable_dev_board_logger()
-    # Older BrainFlow: no disable_dev_board_logger — board logs may still print (harmless)
 
-    #brainflow initialization 
-    params = BrainFlowInputParams()
-    params.serial_number = "UN-2023.08.11"
-    # params.serial_port = serial_port
-    board_shim = BoardShim(BOARD_ID, params)
+    # Board initialization using BCI package
+    if BOARD_ID <= 0:
+        board = SyntheticBoard(
+            n_channels=8,
+            sampling_rate=250,
+            poll_interval_sec=EEG_WINDOW_SEC,
+        )
+    else:
+        board = BrainFlowBoard(
+            board_id=BOARD_ID,
+            serial_number="UN-2023.08.11",
+            poll_interval_sec=EEG_WINDOW_SEC,
+        )
 
-    #prepare board
     try:
-        board_shim.prepare_session()
-    except brainflow.board_shim.BrainFlowError as e:
-        print(f"Error: {e}")
+        board.open()
+    except Exception as e:
+        print(f"Error preparing board: {e}")
         print("The end")
         time.sleep(1)
         sys.exit()
-    #board start streaming
-    board_shim.start_stream()
 
     log_banner("BCI Speller + EEG stream")
-    fs, eeg_rows = print_board_layout(board_shim, BOARD_ID, EEG_WINDOW_SEC, 8)
+    fs, eeg_rows = print_board_layout(board._board_shim, BOARD_ID, EEG_WINDOW_SEC, 8)
     log_section("Controls")
     log_info("Quit", "Focus board window -> Esc or Q | or Ctrl+C in terminal")
     log_info("EEG window", f"{EEG_WINDOW_SEC}s (set EEG_WINDOW_SEC=1.0 for supervisor demo)")
     log_info("Verbose EEG", f"EEG_VERBOSE=1 all windows | default log every {EEG_LOG_EVERY}")
-    logging.info("Begining the experiment")
+    logging.info("Beginning the experiment")
 
-    eeg_controller = EEGStreamController(
-        board_shim        = board_shim,
-        window_duration   = EEG_WINDOW_SEC,
-        board_id          = BOARD_ID,
-        recording_dir     = RECORDING_DIR,
-        participant_id    = PARTICIPANT_ID,
-        eeg_row_indices   = eeg_rows,
+    # Initialize FifRecorder and add to board subscribers
+    recorder = FifRecorder(
+        board_id=BOARD_ID,
+        recording_dir=RECORDING_DIR,
+        participant_id=PARTICIPANT_ID,
+        fs=fs,
+        verbose=EEG_VERBOSE or EEG_DEBUG,
     )
-    _run_handles["board_shim"] = board_shim
-    _run_handles["eeg_controller"] = eeg_controller
+    board.add_subscriber(recorder.stream)
+
+    _run_handles["board"] = board
+    _run_handles["recorder"] = recorder
 
     try:
         vis_window_sec, vis_plot_hz, vis_amplitude_uv = resolve_plot_params()
@@ -541,20 +423,18 @@ def main():
             amplitude_uv=100.0,
         )
 
-    visualizer = EEGVisualizer(
-        board_shim      = board_shim,
-        board_id        = BOARD_ID,
-        n_channels      = 8,
-        window_sec      = vis_window_sec,
-        plot_hz         = vis_plot_hz,
-        amplitude_uv    = vis_amplitude_uv,
-        monitor_index   = VISUALIZER_MONITOR if DEV_DUAL_MONITOR else 0,
+    # Initialize refactored signal monitor UI
+    visualizer = SignalMonitorApp(
+        board=board,
+        n_channels=8,
+        window_sec=vis_window_sec,
+        plot_hz=vis_plot_hz,
+        amplitude_uv=vis_amplitude_uv,
+        monitor_index=VISUALIZER_MONITOR if DEV_DUAL_MONITOR else 0,
     )
-    eeg_controller.add_subscriber(visualizer.data_queue)
     _run_handles["visualizer"] = visualizer
 
     while True:
-
         # Starting the display
         trialClock = core.Clock()
         cal_start.draw()
@@ -562,11 +442,12 @@ def main():
         if wait_seconds(3):
             break
 
-        drawTextOnScreen(f"Hi {PARTICIPANT_NAME}.\nStarting the experiment.Please do not move now\nBoard ID: {BOARD_ID}",window)
+        drawTextOnScreen(f"Hi {PARTICIPANT_NAME}.\nStarting the experiment. Please do not move now\nBoard ID: {BOARD_ID}", window)
         if wait_seconds(10):
             break
 
-        eeg_controller.start()
+        board.start_stream()
+        recorder.start()
         visualizer.start()
         if DEV_DUAL_MONITOR:
             if wait_seconds(1.5):
@@ -576,14 +457,11 @@ def main():
         for block in range(NUM_BLOCK):
             for trials in range(NUM_TRIAL):
                 get_keypress()
-                # Drawing display box
 
-                # Drawing the grid
                 # Display target characters
                 for target in targets.values():
                     target.autoDraw = True
-                    # get_keypress()
-                flicker(board_shim)
+                flicker(board)
 
                 # At the end of the trial, calculate real duration and amount of frames
                 t1 = trialClock.getTime()  # Time at end of trial
@@ -593,13 +471,11 @@ def main():
 
                 for target in targets.values():
                     target.autoDraw = False
-                    ###
-                eeg_controller.pause()
+
+                recorder.pause()
                 visualizer.pause()
                 countdown_timer = core.CountdownTimer(TRIAL_BREAK)
-                if (trials + 1) < NUM_TRIAL: 
-                    # drawTextOnScreen('trials Break 30 sec. You can blink but please donot move.',window)
-                    # core.wait(BLOCK_BREAK)
+                if (trials + 1) < NUM_TRIAL:
                     trial_break_start.autoDraw = True
                     while countdown_timer.getTime() > 0:
                         if check_escape():
@@ -609,21 +485,17 @@ def main():
                         counter.draw()
                         window.flip()
 
-                # trials += 1
                 trial_break_start.autoDraw = False
-                ###
-                eeg_controller.resume()
+                recorder.resume()
                 visualizer.resume()
                 window.flip()
 
             for target in targets.values():
                 target.autoDraw = False
-            eeg_controller.pause()
+            recorder.pause()
             visualizer.pause()
             countdown_timer = core.CountdownTimer(BLOCK_BREAK)
-            if (block + 1) < NUM_BLOCK: 
-                # drawTextOnScreen('Block Break 30 sec. You can blink but please donot move.',window)
-                # core.wait(BLOCK_BREAK)
+            if (block + 1) < NUM_BLOCK:
                 block_break_start.autoDraw = True
                 while countdown_timer.getTime() > 0:
                     if check_escape():
@@ -633,39 +505,30 @@ def main():
                     counter.draw()
                     window.flip()
 
-            # block += 1
             block_break_start.autoDraw = False
-            ###
-            eeg_controller.resume()
+            recorder.resume()
             visualizer.resume()
             window.flip()
 
-        
-        #Adding buffer of 10 sec at the end
+        # Adding buffer of 10 sec at the end
         if wait_seconds(10):
             break
-        eeg_controller.stop()
-        eeg_controller.print_stats()
+        recorder.stop()
+        recorder.print_stats()
         visualizer.stop()
-###
+
         # saving the data from 1 block
         block_name = f'{PARTICIPANT_ID}_raw'
-        data = board_shim.get_board_data()
-        data_copy = data.copy()
-        _process_and_save_window(data_copy, BOARD_ID, block_name, RECORDING_DIR, PARTICIPANT_ID)
-        # save_csv(data, RECORDING_DIR, PARTICIPANT_ID)
-        drawTextOnScreen('End of experiment, Thank you',window)
+        recorder.save_full_block(block_name)
+        drawTextOnScreen('End of experiment, Thank you', window)
         wait_seconds(3)
         break
 
-
-    if board_shim.is_prepared():
+    if board.get_status().is_open:
         logging.info('Releasing session')
-        # stop board to stream
-        board_shim.stop_stream()
-        board_shim.release_session()
+        board.close()
 
-    #cleanup
+    # cleanup
     window.close()
     core.quit()
 

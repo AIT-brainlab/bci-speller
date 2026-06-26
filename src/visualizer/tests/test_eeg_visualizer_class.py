@@ -29,7 +29,7 @@ def test_eeg_visualizer_builds_queues(board_shim: Any) -> None:
     assert vis.is_running is False
 
 
-@patch("visualizer.live_monitor_class.Process")
+@patch("bci.ui.signal_monitor.app.Process")
 def test_start_stop(mock_process_cls: MagicMock, board_shim: Any) -> None:
     proc = MagicMock()
     proc.is_alive.return_value = True
@@ -48,7 +48,7 @@ def test_start_stop(mock_process_cls: MagicMock, board_shim: Any) -> None:
     proc.join.assert_called()
 
 
-@patch("visualizer.live_monitor_class.Process")
+@patch("bci.ui.signal_monitor.app.Process")
 def test_stop_terminates_alive_process(mock_process_cls: MagicMock, board_shim: Any) -> None:
     proc = MagicMock()
     proc.is_alive.side_effect = [True, True]
@@ -62,6 +62,7 @@ def test_stop_terminates_alive_process(mock_process_cls: MagicMock, board_shim: 
         amplitude_uv=50,
     )
     vis._process = proc
+    assert vis._process == proc
     vis.stop()
     proc.terminate.assert_called_once()
 
