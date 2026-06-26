@@ -213,7 +213,6 @@ __marimo__/
 data/*
 !data/example.csv
 models/*
-local.env
 
 .devcontainer/**/data
 

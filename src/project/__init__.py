@@ -1,10 +1,8 @@
 from dotenv import load_dotenv
 from pathlib import Path
-import sys
 
-_ENVFILE:Path = Path("local.env")
-if(_ENVFILE.exists() == False):
-    print("[Warning] Missing `local.env`. We assume all variables is in `os.environ`", file=sys.stderr)
+
+_ENVFILE:Path = Path(".env")
 load_dotenv(dotenv_path=_ENVFILE)
 
 
