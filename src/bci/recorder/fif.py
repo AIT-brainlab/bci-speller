@@ -14,6 +14,7 @@ from numpy.typing import NDArray
 from bci.board.stream import DataStream
 from bci.recorder.base import RecorderInterface
 
+# TODO: #16 Remove the visualizer dependency. recording module should only depend on `bci.board`
 try:
     from visualizer.utils.common import getdata_offline, save_raw
 except ImportError:
