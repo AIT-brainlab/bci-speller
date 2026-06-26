@@ -31,5 +31,5 @@ package = true
 only-binary = ["ffpyplayer"]
 
 [project.scripts]
-bci-speller = "project:cli"
+bci-speller = "bci.cli:cli"
 
