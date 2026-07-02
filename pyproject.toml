@@ -32,3 +32,9 @@ only-binary = ["ffpyplayer"]
 [project.scripts]
 bci-speller = "project:cli"
 
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore:pkg_resources is deprecated:DeprecationWarning",
+    "ignore:Deprecated call to `pkg_resources.declare_namespace:DeprecationWarning",
+]
+

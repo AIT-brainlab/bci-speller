@@ -78,7 +78,14 @@ def test_board_stream_loop_forwards_chunks() -> None:
     assert np.array_equal(received[0], data)
 
 
-def test_brainflow_board_lifecycle() -> None:
+def test_brainflow_board_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
+    from brainflow.board_shim import BoardShim
+    monkeypatch.setattr(BoardShim, "prepare_session", MagicMock())
+    monkeypatch.setattr(BoardShim, "start_stream", MagicMock())
+    monkeypatch.setattr(BoardShim, "stop_stream", MagicMock())
+    monkeypatch.setattr(BoardShim, "release_session", MagicMock())
+    monkeypatch.setattr(BoardShim, "get_board_data", MagicMock(return_value=np.empty((0, 0))))
+
     board = BrainFlowBoard(board_id=8, serial_number="TEST")
     assert not board.get_status().is_open
     board.open()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import multiprocessing
+import queue
 import time
 from unittest.mock import MagicMock, patch
 
@@ -15,8 +16,8 @@ from visualizer.process import run_visualizer_process
 @patch("visualizer.process.position_figure_on_monitor")
 def test_process_marker_skips_text_when_no_axes(mock_position: MagicMock) -> None:
     stubs = _matplotlib_test_env()
-    data_q: multiprocessing.Queue = multiprocessing.Queue()
-    marker_q: multiprocessing.Queue = multiprocessing.Queue()
+    data_q: multiprocessing.Queue = queue.Queue()  # type: ignore
+    marker_q: multiprocessing.Queue = queue.Queue()  # type: ignore
     stop_event = multiprocessing.Event()
     pause_event = multiprocessing.Event()
     pause_event.set()
@@ -48,8 +49,8 @@ def test_process_ui_exceptions(mock_position: MagicMock) -> None:
     stubs.fig.tight_layout.side_effect = RuntimeError("layout")
     stubs.plt.show.side_effect = RuntimeError("display failed")
 
-    data_q: multiprocessing.Queue = multiprocessing.Queue()
-    marker_q: multiprocessing.Queue = multiprocessing.Queue()
+    data_q: multiprocessing.Queue = queue.Queue()  # type: ignore
+    marker_q: multiprocessing.Queue = queue.Queue()  # type: ignore
     stop_event = multiprocessing.Event()
     pause_event = multiprocessing.Event()
     pause_event.set()
@@ -75,8 +76,8 @@ def test_process_ui_exceptions(mock_position: MagicMock) -> None:
 @patch("visualizer.process.position_figure_on_monitor")
 def test_process_quality_colors_and_hz(mock_position: MagicMock) -> None:
     stubs = _matplotlib_test_env()
-    data_q: multiprocessing.Queue = multiprocessing.Queue()
-    marker_q: multiprocessing.Queue = multiprocessing.Queue()
+    data_q: multiprocessing.Queue = queue.Queue()  # type: ignore
+    marker_q: multiprocessing.Queue = queue.Queue()  # type: ignore
     stop_event = multiprocessing.Event()
     pause_event = multiprocessing.Event()
     pause_event.set()
@@ -119,8 +120,8 @@ def test_process_quality_colors_and_hz(mock_position: MagicMock) -> None:
 def test_process_status_ok_color(mock_position: MagicMock) -> None:
     """Cover quality branch: 0.15 < quality <= 0.8 (STATUS_OK)."""
     stubs = _matplotlib_test_env()
-    data_q: multiprocessing.Queue = multiprocessing.Queue()
-    marker_q: multiprocessing.Queue = multiprocessing.Queue()
+    data_q: multiprocessing.Queue = queue.Queue()  # type: ignore
+    marker_q: multiprocessing.Queue = queue.Queue()  # type: ignore
     stop_event = multiprocessing.Event()
     pause_event = multiprocessing.Event()
     pause_event.set()
@@ -150,8 +151,8 @@ def test_process_status_ok_color(mock_position: MagicMock) -> None:
 @patch("visualizer.process.position_figure_on_monitor")
 def test_process_status_pause_only(mock_position: MagicMock) -> None:
     stubs = _matplotlib_test_env()
-    data_q: multiprocessing.Queue = multiprocessing.Queue()
-    marker_q: multiprocessing.Queue = multiprocessing.Queue()
+    data_q: multiprocessing.Queue = queue.Queue()  # type: ignore
+    marker_q: multiprocessing.Queue = queue.Queue()  # type: ignore
     stop_event = multiprocessing.Event()
     pause_event = multiprocessing.Event()
     pause_event.set()
@@ -178,8 +179,8 @@ def test_process_status_pause_only(mock_position: MagicMock) -> None:
 @patch("visualizer.process.position_figure_on_monitor")
 def test_process_live_hz_counter(mock_position: MagicMock) -> None:
     stubs = _matplotlib_test_env()
-    data_q: multiprocessing.Queue = multiprocessing.Queue()
-    marker_q: multiprocessing.Queue = multiprocessing.Queue()
+    data_q: multiprocessing.Queue = queue.Queue()  # type: ignore
+    marker_q: multiprocessing.Queue = queue.Queue()  # type: ignore
     stop_event = multiprocessing.Event()
     pause_event = multiprocessing.Event()
     pause_event.set()
@@ -211,8 +212,8 @@ def test_process_live_hz_counter(mock_position: MagicMock) -> None:
 @patch("visualizer.process.position_figure_on_monitor")
 def test_process_paused_status(mock_position: MagicMock) -> None:
     stubs = _matplotlib_test_env()
-    data_q: multiprocessing.Queue = multiprocessing.Queue()
-    marker_q: multiprocessing.Queue = multiprocessing.Queue()
+    data_q: multiprocessing.Queue = queue.Queue()  # type: ignore
+    marker_q: multiprocessing.Queue = queue.Queue()  # type: ignore
     stop_event = multiprocessing.Event()
     pause_event = multiprocessing.Event()
 

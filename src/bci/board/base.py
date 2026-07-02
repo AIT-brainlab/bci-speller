@@ -76,3 +76,9 @@ class BoardInterface(ABC):
     def eeg_channel_indices(self) -> Sequence[int]:
         """Row indices for EEG channels in board data arrays."""
         return tuple(range(1, 9))  # pragma: no cover
+
+    @property
+    def channel_names(self) -> list[str]:
+        """Names of EEG channels."""
+        return [f"EEG {i}" for i in range(1, len(self.eeg_channel_indices) + 1)]
+

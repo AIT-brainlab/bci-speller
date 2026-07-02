@@ -23,7 +23,12 @@ def test_install_fake_brainflow_returns_when_already_loaded(monkeypatch: pytest.
     _install_fake_brainflow()
 
 
-def test_fake_brainflow_boardshim_methods_are_callable() -> None:
+def test_fake_brainflow_boardshim_methods_are_callable(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Force the fake brainflow to be installed for this test by clearing sys.modules
+    monkeypatch.delitem(sys.modules, "brainflow", raising=False)
+    monkeypatch.delitem(sys.modules, "brainflow.board_shim", raising=False)
+    _install_fake_brainflow()
+
     import brainflow.board_shim as bf
 
     params = bf.BrainFlowInputParams()

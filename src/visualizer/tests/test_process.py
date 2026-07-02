@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import multiprocessing
+import queue
 import sys
 from types import ModuleType, SimpleNamespace
 from typing import Any, Callable, List
@@ -67,8 +68,8 @@ def _matplotlib_test_env() -> SimpleNamespace:
 @patch("visualizer.process.position_figure_on_monitor")
 def test_run_process_live_update(mock_position: MagicMock) -> None:
     stubs = _matplotlib_test_env()
-    data_q: multiprocessing.Queue = multiprocessing.Queue()
-    marker_q: multiprocessing.Queue = multiprocessing.Queue()
+    data_q: multiprocessing.Queue = queue.Queue()  # type: ignore
+    marker_q: multiprocessing.Queue = queue.Queue()  # type: ignore
     stop_event = multiprocessing.Event()
     pause_event = multiprocessing.Event()
     pause_event.set()
@@ -100,8 +101,8 @@ def test_run_process_live_update(mock_position: MagicMock) -> None:
 @patch("visualizer.process.position_figure_on_monitor")
 def test_run_process_paused_and_stopped(mock_position: MagicMock) -> None:
     stubs = _matplotlib_test_env()
-    data_q: multiprocessing.Queue = multiprocessing.Queue()
-    marker_q: multiprocessing.Queue = multiprocessing.Queue()
+    data_q: multiprocessing.Queue = queue.Queue()  # type: ignore
+    marker_q: multiprocessing.Queue = queue.Queue()  # type: ignore
     stop_event = multiprocessing.Event()
     pause_event = multiprocessing.Event()
 

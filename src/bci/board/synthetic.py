@@ -41,6 +41,10 @@ class SyntheticBoard(BrainFlowBoard):
         self._n_channels = n_channels
         self._sampling_rate = sampling_rate
 
+    @property
+    def channel_names(self) -> list[str]:
+        return ["Fz", "C3", "Cz", "C4", "Pz", "PO7", "Oz", "PO8"]
+
     def get_status(self) -> BoardStatus:
         return BoardStatus(
             is_open=self._is_open,
