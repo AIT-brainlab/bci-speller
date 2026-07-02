@@ -7,6 +7,8 @@ import multiprocessing
 import queue
 import sys
 from pathlib import Path
+from types import ModuleType
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,6 +18,17 @@ from bci.ui.signal_monitor.process import run_signal_monitor_process
 @pytest.fixture
 def mock_queues() -> tuple[multiprocessing.Queue, multiprocessing.Queue]:
     return MagicMock(), MagicMock()
+
+
+def _setup_matplotlib_mocks(mock_plt: MagicMock, mock_animation_module: MagicMock, mock_gridspec: MagicMock) -> dict[str, Any]:
+    mock_matplotlib = ModuleType("matplotlib")
+    mock_matplotlib.use = MagicMock()
+    return {
+        "matplotlib": mock_matplotlib,
+        "matplotlib.pyplot": mock_plt,
+        "matplotlib.animation": mock_animation_module,
+        "matplotlib.gridspec": mock_gridspec,
+    }
 
 
 def test_signal_monitor_process_import_path_branch() -> None:
@@ -66,11 +79,7 @@ def test_signal_monitor_process_high_quality_branch(mock_queues: tuple) -> None:
         return MagicMock()
     mock_animation_module.FuncAnimation.side_effect = capture_update
 
-    modules = {
-        "matplotlib.pyplot": mock_plt,
-        "matplotlib.animation": mock_animation_module,
-        "matplotlib.gridspec": mock_gridspec,
-    }
+    modules = _setup_matplotlib_mocks(mock_plt, mock_animation_module, mock_gridspec)
 
     with patch.dict("sys.modules", modules):
         with patch("bci.ui.signal_monitor.process.time.perf_counter", side_effect=[0.0, 1.1]):
@@ -125,11 +134,7 @@ def test_signal_monitor_process_axes_false_marker_branch(mock_queues: tuple) -> 
         return MagicMock()
     mock_animation_module.FuncAnimation.side_effect = capture_update
 
-    modules = {
-        "matplotlib.pyplot": mock_plt,
-        "matplotlib.animation": mock_animation_module,
-        "matplotlib.gridspec": mock_gridspec,
-    }
+    modules = _setup_matplotlib_mocks(mock_plt, mock_animation_module, mock_gridspec)
 
     with patch.dict("sys.modules", modules):
         with patch("bci.ui.signal_monitor.process.time.perf_counter", side_effect=[0.0, 1.1]):
@@ -185,11 +190,7 @@ def test_run_signal_monitor_process(mock_queues: tuple) -> None:
         return MagicMock()
     mock_animation_module.FuncAnimation.side_effect = capture_update
 
-    modules = {
-        "matplotlib.pyplot": mock_plt,
-        "matplotlib.animation": mock_animation_module,
-        "matplotlib.gridspec": mock_gridspec
-    }
+    modules = _setup_matplotlib_mocks(mock_plt, mock_animation_module, mock_gridspec)
 
     with patch.dict("sys.modules", modules):
         with patch("bci.ui.signal_monitor.process.time.perf_counter", side_effect=[0.0, 1.0, 2.1, 3.2, 4.3, 5.4, 6.5, 7.6, 8.7]):
@@ -271,11 +272,7 @@ def test_run_signal_monitor_process_exception(mock_queues: tuple) -> None:
     
     mock_fig.canvas.manager.set_window_title.side_effect = Exception("fail")
 
-    modules = {
-        "matplotlib.pyplot": mock_plt,
-        "matplotlib.animation": mock_animation_module,
-        "matplotlib.gridspec": mock_gridspec
-    }
+    modules = _setup_matplotlib_mocks(mock_plt, mock_animation_module, mock_gridspec)
 
     with patch.dict("sys.modules", modules):
         run_signal_monitor_process(

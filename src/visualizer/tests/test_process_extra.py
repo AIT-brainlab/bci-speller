@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import multiprocessing
+import queue
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -14,8 +15,8 @@ from visualizer.process import run_visualizer_process
 @patch("visualizer.process.position_figure_on_monitor")
 def test_run_process_large_and_small_chunks(mock_position: MagicMock) -> None:
     stubs = _matplotlib_test_env()
-    data_q: multiprocessing.Queue = multiprocessing.Queue()
-    marker_q: multiprocessing.Queue = multiprocessing.Queue()
+    data_q: multiprocessing.Queue = queue.Queue()  # type: ignore
+    marker_q: multiprocessing.Queue = queue.Queue()  # type: ignore
     stop_event = multiprocessing.Event()
     pause_event = multiprocessing.Event()
     pause_event.set()

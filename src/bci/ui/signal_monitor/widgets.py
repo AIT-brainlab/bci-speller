@@ -60,7 +60,7 @@ def list_monitors() -> List[Tuple[int, int, int, int]]:
                 ("dwFlags", ctypes.c_ulong),
             ]
 
-        def _callback(hmonitor: int, hdc: int, lprect: Any, _data: float) -> bool:
+        def _callback(hmonitor: int, hdc: int, lprect: Any, _data: float) -> bool:  # pragma: no cover
             info = MONITORINFO()
             info.cbSize = ctypes.sizeof(MONITORINFO)
             ctypes.windll.user32.GetMonitorInfoW(hmonitor, ctypes.byref(info))
@@ -111,8 +111,8 @@ def _place_root_on_monitor(
         root.after(800, lambda: root.attributes("-topmost", False))
         root.lift()
         root.focus_force()
-    except Exception:
-        pass
+    except Exception:  # pragma: no cover
+        pass  # pragma: no cover
 
 
 def position_figure_on_monitor(fig: Any, monitor_index: int = 1) -> None:

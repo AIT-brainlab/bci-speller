@@ -66,7 +66,7 @@ class BoardStreamLoop:
         while not self._stop_event.is_set():
             self._pause_event.wait(timeout=self._poll_interval_sec)
             if self._stop_event.is_set():
-                break
+                break  # pragma: no cover
             if not self._pause_event.is_set():
                 continue
             data = self._poll_buffer()

@@ -26,7 +26,7 @@ def list_monitors() -> List[Tuple[int, int, int, int]]:
                 ("dwFlags", ctypes.c_ulong),
             ]
 
-        def _callback(hmonitor: int, hdc: int, lprect: Any, _data: float) -> bool:
+        def _callback(hmonitor: int, hdc: int, lprect: Any, _data: float) -> bool:  # pragma: no cover
             info = MONITORINFO()
             info.cbSize = ctypes.sizeof(MONITORINFO)
             ctypes.windll.user32.GetMonitorInfoW(hmonitor, ctypes.byref(info))

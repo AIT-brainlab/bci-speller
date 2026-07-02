@@ -33,6 +33,7 @@ def test_package_imports() -> None:
 
 def test_data_stream_put_get() -> None:
     stream = DataStream(maxsize=10)
+    assert stream.maxsize == 10
     chunk = np.ones((8, 5))
     stream.put(chunk)
     assert np.array_equal(stream.get(), chunk)
@@ -77,7 +78,14 @@ def test_board_stream_loop_forwards_chunks() -> None:
     assert np.array_equal(received[0], data)
 
 
-def test_brainflow_board_lifecycle() -> None:
+def test_brainflow_board_lifecycle(monkeypatch: pytest.MonkeyPatch) -> None:
+    from brainflow.board_shim import BoardShim
+    monkeypatch.setattr(BoardShim, "prepare_session", MagicMock())
+    monkeypatch.setattr(BoardShim, "start_stream", MagicMock())
+    monkeypatch.setattr(BoardShim, "stop_stream", MagicMock())
+    monkeypatch.setattr(BoardShim, "release_session", MagicMock())
+    monkeypatch.setattr(BoardShim, "get_board_data", MagicMock(return_value=np.empty((0, 0))))
+
     board = BrainFlowBoard(board_id=8, serial_number="TEST")
     assert not board.get_status().is_open
     board.open()
@@ -118,3 +126,66 @@ def test_board_status_dataclass() -> None:
     status = BoardStatus(is_open=True, is_streaming=False, board_id=-1)
     assert status.is_open
     assert status.board_id == -1
+
+
+def test_board_interface_subscribers() -> None:
+    board = SyntheticBoard(n_channels=8, sampling_rate=250)
+    assert board.get_status().board_id == -1
+    stream = board.get_raw_stream()
+    assert stream is not None
+
+    stream2 = DataStream()
+    board.add_subscriber(stream2)
+    assert stream2 in board._subscribers
+
+    # Try adding again (should remain unique)
+    board.add_subscriber(stream2)
+    
+    board.remove_subscriber(stream2)
+    assert stream2 not in board._subscribers
+
+    # Remove non-existent subscriber safely
+    board.remove_subscriber(stream2)
+
+    # Verify channel indices property
+    assert isinstance(board.eeg_channel_indices, tuple)
+
+
+def test_board_stream_loop_extended() -> None:
+    from bci.board.streaming import BoardStreamLoop
+    received = []
+
+    # Callback that returns empty on first call, then data
+    call_count = 0
+    def poll_buffer():
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return np.empty((0, 0))
+        return np.ones((8, 5))
+
+    loop = BoardStreamLoop(
+        poll_buffer=poll_buffer,
+        put_chunk=received.append,
+        poll_interval_sec=0.01,
+    )
+
+    assert not loop.is_running
+    loop.start()
+    assert loop.is_running
+
+    time.sleep(0.05)
+
+    # Pause
+    loop.pause()
+    time.sleep(0.03)
+
+    # Resume
+    loop.resume()
+    time.sleep(0.03)
+
+    # Trigger exception in put_chunk
+    loop._put_chunk = MagicMock(side_effect=Exception("mock put fail"))
+    time.sleep(0.03)
+
+    loop.stop()

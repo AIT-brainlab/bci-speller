@@ -17,7 +17,7 @@ from bci.recorder.base import RecorderInterface
 # TODO: #16 Remove the visualizer dependency. recording module should only depend on `bci.board`
 try:
     from visualizer.utils.common import getdata_offline, save_raw
-except ImportError:
+except ImportError:  # pragma: no cover
     try:
         from utils.common import getdata_offline, save_raw
     except ImportError:

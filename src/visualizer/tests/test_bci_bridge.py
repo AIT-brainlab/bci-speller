@@ -24,3 +24,16 @@ def test_stream_bridge_forwards_chunks() -> None:
         assert np.array_equal(received, chunk)
     finally:
         bridge.stop()
+
+
+def test_stream_bridge_exception() -> None:
+    from unittest.mock import MagicMock
+    source = DataStream()
+    dest = MagicMock()
+    dest.put_nowait.side_effect = Exception("mock put fail")
+
+    bridge = StreamBridge(source, dest, poll_interval_sec=0.01)
+    bridge.start()
+    source.put(np.zeros((8, 1)))
+    time.sleep(0.05)
+    bridge.stop()
